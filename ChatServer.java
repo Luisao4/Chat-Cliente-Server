@@ -5,15 +5,21 @@ import java.nio.channels.*;
 import java.nio.charset.*;
 import java.util.*;
 
+enum State {
+  init,outside, inside
+}
+
 public class ChatServer
 {
-  // A pre-allocated buffer for the received data
-  static private final ByteBuffer buffer = ByteBuffer.allocate( 16384 );
-
-  // Decoder for incoming text -- assume UTF-8
-  static private final Charset charset = Charset.forName("UTF8");
-  static private final CharsetDecoder decoder = charset.newDecoder();
-
+    // A pre-allocated buffer for the received data
+    static private final ByteBuffer buffer = ByteBuffer.allocate( 16384 );
+  
+    // Decoder for incoming text -- assume UTF-8
+    static private final Charset charset = Charset.forName("UTF8");
+    static private final CharsetDecoder decoder = charset.newDecoder();
+    static private final CharsetEncoder encoder = charset.newEncoder();
+    static private HashSet<ChatRoom> chatRooms = new HashSet<>();
+    static private HashSet<SelectionKey> chatUsers = new HashSet<>();
 
   static public void main( String args[] ) throws Exception {
     // Parse port from command line
@@ -79,6 +85,11 @@ public class ChatServer
             SocketChannel sc = null;
 
             try {
+               // conexao do novo user
+               if(key.attachment() == null){
+                key.attach(new ChatUser());
+                chatUsers.add(key);
+              }
 
               // It's incoming data on a connection -- process it
               sc = (SocketChannel)key.channel();
@@ -88,6 +99,7 @@ public class ChatServer
               // and close it
               if (!ok) {
                 key.cancel();
+                removeChatUser(key); //remove o user do chat
 
                 Socket s = null;
                 try {
@@ -125,6 +137,7 @@ public class ChatServer
   // Just read the message from the socket and send it to stdout
   static private boolean processInput( SocketChannel sc ) throws IOException {
     // Read the message to the buffer
+    SocketChannel sc = (SocketChannel) key.channel(); // vai buscar o canal a socket
     buffer.clear();
     sc.read( buffer );
     buffer.flip();
@@ -138,6 +151,16 @@ public class ChatServer
     String message = decoder.decode(buffer).toString();
     System.out.print( message );
 
+
+    ChatUser chatUser = (ChatUser) key.attachment();
+    msg = chatUser.getMsg() + msg;
+    if(msg.endsWith("\n")){ // \n
+    }else {                  // ctrl D
+        chatUser.addMsg(msg);
+        return true;
+    }
+
     return true;
   }
 }
+//Nick Command PARA A FRENTE
