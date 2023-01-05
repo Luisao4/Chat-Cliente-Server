@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.zip.DataFormatException;
 import java.awt.*;
 import java.awt.event.*;
 import javax.swing.*;
@@ -16,10 +17,15 @@ public class ChatClient {
 
     // Se for necessário adicionar variáveis ao objecto ChatClient, devem
     // ser colocadas aqui
+    private int port, state;
+
+    private Socket clientSocket;
+    private String server;
+
+    private BufferedReader inFromServer;
+    private DataOutputStream outToServer;
 
 
-
-    
     // Método a usar para acrescentar uma string à caixa de texto
     // * NÃO MODIFICAR *
     public void printMessage(final String message) {
@@ -62,9 +68,12 @@ public class ChatClient {
 
         // Se for necessário adicionar código de inicialização ao
         // construtor, deve ser colocado aqui
-
-
-
+        this.port = port;
+        this.server = server;
+        state = 0;
+        clientSocket = new Socket(server, port);
+        outToServer = new DataOutputStream(clientSocket.getOutputStream());
+        inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
     }
 
 
@@ -72,18 +81,63 @@ public class ChatClient {
     // na caixa de entrada
     public void newMessage(String message) throws IOException {
         // PREENCHER AQUI com código que envia a mensagem ao servidor
-
-
-
+        message = message.trim();
+        System.out.println("SENDING:" + message);
+        outToServer.write((message + "\n").getBytes("UTF-8"));
     }
 
     
     // Método principal do objecto
     public void run() throws IOException {
         // PREENCHER AQUI
-
-
-
+        try {
+            BufferedReader data;
+            boolean flag = true;
+            while(flag){
+              data = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+              String msg = data.readLine();
+              System.out.println("RECEIVED: " + msg);
+  
+              if (msg == null) {
+                flag = false;
+                break;
+              }
+  
+              String[] tks = msg.split(" ");
+              switch(tks[0]) {
+                case "MESSAGE": {
+                  msg = msg.replaceFirst("MESSAGE","").replaceFirst(tks[1],"");
+                  msg = tks[1] + ":" + msg;
+                  break;
+                }
+                case "PRIVATE": {
+                    break;
+                }
+                case "NEWNICK": {
+                  msg = tks[1] + " changed his nickname to: " + tks[2];
+                  break;
+                }
+                case "JOINED": {
+                  msg = tks[1] + " joined the room";
+                  break;
+                }
+                case "LEFT": {
+                  msg = tks[1] + " left the room";
+                  break;
+                }
+              }
+  
+              System.out.println("PRINTING: " + msg);
+  
+              if(msg.compareTo("BYE\n") == 0) {
+                flag = false;
+              }
+              msg = msg + "\n";
+              printMessage(msg);
+            }
+          } catch(Exception e) {
+            e.printStackTrace();
+          }
     }
     
 
