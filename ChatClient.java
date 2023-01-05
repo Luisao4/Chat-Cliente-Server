@@ -4,7 +4,7 @@ import java.util.*;
 import java.util.zip.DataFormatException;
 import java.awt.*;
 import java.awt.event.*;
-import javax.swing.*;
+import javax.swing.*; 
 
 
 public class ChatClient {
