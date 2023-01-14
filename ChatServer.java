@@ -1,15 +1,14 @@
-import java.util.*;
 import java.io.*;
-import java.nio.*;
 import java.net.*;
-import java.nio.charset.*;
+import java.nio.*;
 import java.nio.channels.*;
+import java.nio.charset.*;
+import java.util.*;
 
-enum State { // enum para os estados do user
-  init,outside, inside
+enum State {
+  init, outside, inside
 }
 
-// como e a class do user que vai ter o nick, a room que esta,msg que vai receber e enviar,  o estado 
 class ChatUser {
   private String msg = "";
   private String nick;
@@ -48,10 +47,13 @@ class ChatUser {
     this.msg = "";
   }
   boolean isInRoom(){
-    return this.getChatRoom() != null ? true : false;
+    if (this.getChatRoom() == null)
+      return false;
+    else
+      return true;
   }
 }
-//class da chatroom com o nome da room + users que estao nela + metodos para adicionar e remover users da room
+
 class ChatRoom{
   private String title;
   private HashSet<SelectionKey> chatUsers;
@@ -61,7 +63,7 @@ class ChatRoom{
     chatUsers = new HashSet<>();
   }
   
-  String getTite(){
+  String getTitle(){
     return this.title;
   }
   
@@ -80,7 +82,7 @@ class ChatRoom{
     return chatUsers.isEmpty();
   }
 }
- // main thing
+
 public class ChatServer
 {
   // A pre-allocated buffer for the received data
@@ -208,10 +210,12 @@ public class ChatServer
   
   // Just read the message from the socket and send it to stdout
   static private boolean processInput( SelectionKey key ) throws IOException {
+    
+    SocketChannel sc = (SocketChannel) key.channel();
+    
     // Read the message to the buffer
-    SocketChannel sChannel = (SocketChannel) key.channel();
     buffer.clear();
-    sChannel.read( buffer );
+    sc.read( buffer );
     buffer.flip();
     
     // If no data, close the connection
@@ -232,47 +236,41 @@ public class ChatServer
         return true;
     }
 
-    //Nick Command
-    if (msg.startsWith("/nick ")) { // len 6
+    
+    if (msg.startsWith("/nick ")) {
       String nick = msg.substring(6);
-      nick = nick.replace("\n", ""); //Remove \n from substring
-      Nickcommand(nick, key);
-    } //join command
-    else if(msg.startsWith("/priv ")){ //len 6
+      nick = nick.replace("\n", "");
+      nickCommand(nick, key);
+    } else if (msg.startsWith("/priv ")) {
       String aux = msg.substring(6);
       String destiny = "";
       int i = 0;
-      for(i = 0; aux.charAt(i) != ' '; i++){
+      for (i = 0; aux.charAt(i) != ' '; i++) {
         destiny = destiny + aux.charAt(i);
       }
       String privMsg = aux.substring(i + 1);
       privMsg.replace("\n", "");
-      PrivCommand(destiny, key, privMsg);
-    }
-    else if(msg.startsWith("/join ")){ //len 6
+      privCommand(destiny, key, privMsg);
+    } else if (msg.startsWith("/join ")) {
       String chatRoom = msg.substring(6);
-      chatRoom = chatRoom.replace("\n",""); //Remove \n from substring
+      chatRoom = chatRoom.replace("\n", "");
       commandJoin(chatRoom, key);
-    } 
-    //leave command
-    else if(msg.startsWith("/bye")){
-      Byecommand(key); // bye command 
-    } 
+    } else if (msg.startsWith("/bye")) {
+      byeCommand(key); // bye command
+    }
 
-    else if(msg.startsWith("/leave")){
-      commandLeave(key);
-    } 
-    else { //mensagem normal
-      msg = msg.replace("\n", ""); //Remove \n from substring
+    else if (msg.startsWith("/leave")) {
+      leaveCommand(key);
+    } else {
+      msg = msg.replace("\n", "");
       message(key, msg);
     }
-
     
     chatUser.cleanMsg();  
     return true;
   }
 
-  static private void Nickcommand(String nick, SelectionKey key) throws IOException{
+  static private void nickCommand(String nick, SelectionKey key) throws IOException{
     ChatUser chatUser = (ChatUser) key.attachment();
 
     //check if nick is unique
@@ -296,7 +294,7 @@ public class ChatServer
     chatUser.setNick(nick);
     send(key, "OK");
   }
-  static private void PrivCommand(String chatUser, SelectionKey key, String msg) throws IOException{
+  static private void privCommand(String chatUser, SelectionKey key, String msg) throws IOException{
     for(SelectionKey auxKey : chatUsers){
       ChatUser destiny = (ChatUser) auxKey.attachment();
 
@@ -320,7 +318,7 @@ public class ChatServer
     ChatRoom auxChatRoom = chatUser.getChatRoom();
     //check if user already in chatRoom
     if(auxChatRoom != null){
-      if(auxChatRoom.getTite().compareTo(chatRoom) == 0){
+      if(auxChatRoom.getTitle().compareTo(chatRoom) == 0){
         send(key, "ERROR");
         return;
       }
@@ -328,13 +326,13 @@ public class ChatServer
     ChatRoom newChatRoom = null;
 
     for(ChatRoom aux : chatRooms){
-      if(aux.getTite().compareTo(chatRoom) == 0){
+      if(aux.getTitle().compareTo(chatRoom) == 0){
         newChatRoom = aux;
         break;
       }
     }
     if(chatUser.isInRoom()){
-      commandLeave(key);
+      leaveCommand(key);
     }
     if(newChatRoom != null){ //room already exists
       chatUser.setChatRoom(newChatRoom);
@@ -351,7 +349,7 @@ public class ChatServer
     chatUser.setState(State.inside);
   }
   
-  static private void commandLeave(SelectionKey key) throws IOException {
+  static private void leaveCommand(SelectionKey key) throws IOException {
     ChatUser chatUser = (ChatUser) key.attachment();
     if(chatUser.getState() != State.inside){
       send(key, "ERROR");
@@ -388,10 +386,10 @@ public class ChatServer
     }
     chatUsers.remove(key);
   }
-  static private void Byecommand(SelectionKey key) throws IOException {
+  static private void byeCommand(SelectionKey key) throws IOException {
     ChatUser charUser = (ChatUser) key.attachment();
     if(charUser.getState() == State.inside){
-      commandLeave(key);
+      leaveCommand(key);
     }
     send(key, "BYE");
     chatUsers.remove(key);
@@ -417,9 +415,9 @@ public class ChatServer
       send(key,"ERROR");
       return;
     }
-    if(msg.charAt(0) == '/'){
-      msg = "/" + msg;
-    }
+    // if(msg.charAt(0) == '/'){
+    //   msg = "/" + msg;
+    // }
     msg = "MESSAGE " + chatUser.getNick() + " " + msg;
     msgSenttoRoom(chatUser.getChatRoom(), msg);
   }
