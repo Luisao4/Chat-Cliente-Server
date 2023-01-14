@@ -5,21 +5,23 @@ import java.nio.channels.*;
 import java.nio.charset.*;
 import java.util.*;
 
-enum State {
-  init,outside, inside
-}
 
 public class ChatServer
 {
-    // A pre-allocated buffer for the received data
-    static private final ByteBuffer buffer = ByteBuffer.allocate( 16384 );
-  
-    // Decoder for incoming text -- assume UTF-8
-    static private final Charset charset = Charset.forName("UTF8");
-    static private final CharsetDecoder decoder = charset.newDecoder();
-    static private final CharsetEncoder encoder = charset.newEncoder();
-    static private HashSet<ChatRoom> chatRooms = new HashSet<>();
-    static private HashSet<SelectionKey> chatUsers = new HashSet<>();
+  // A pre-allocated buffer for the received data
+  static private final ByteBuffer buffer = ByteBuffer.allocate( 16384 );
+
+  // Decoder for incoming text -- assume UTF-8
+  static private final Charset charset = Charset.forName("UTF8");
+  static private final CharsetDecoder decoder = charset.newDecoder();
+  static private final CharsetEncoder encoder = charset.newEncoder();
+
+  enum State {
+    init, outside, inside
+  }
+
+  static private HashSet<SelectionKey> chatUsers = new HashSet<>();
+  static private HashSet<ChatRoom> chatRooms = new HashSet<>();
 
   static public void main( String args[] ) throws Exception {
     // Parse port from command line
@@ -85,21 +87,21 @@ public class ChatServer
             SocketChannel sc = null;
 
             try {
-               // conexao do novo user
-               if(key.attachment() == null){
-                key.attach(new ChatUser());
-                chatUsers.add(key);
-              }
 
               // It's incoming data on a connection -- process it
               sc = (SocketChannel)key.channel();
-              boolean ok = processInput( sc );
+              boolean ok = processInput( key );
+
+              if (key.attachment() == null) { // new user
+                key.attach(new ChatUser()); // attach a new ChatUser
+                chatUsers.add(key); // add to chatUsers
+              }
 
               // If the connection is dead, remove it from the selector
               // and close it
               if (!ok) {
+                removeChatUser(key); // remove from chatUsers
                 key.cancel();
-                removeChatUser(key); //remove o user do chat
 
                 Socket s = null;
                 try {
@@ -135,32 +137,116 @@ public class ChatServer
 
 
   // Just read the message from the socket and send it to stdout
-  static private boolean processInput( SocketChannel sc ) throws IOException {
+  static private boolean processInput( SelectionKey key ) throws IOException {
+    SocketChannel sc = (SocketChannel)key.channel();
+
     // Read the message to the buffer
-    SocketChannel sc = (SocketChannel) key.channel(); // vai buscar o canal a socket
     buffer.clear();
     sc.read( buffer );
     buffer.flip();
-
+    
     // If no data, close the connection
     if (buffer.limit()==0) {
       return false;
     }
-
+    
     // Decode and print the message to stdout
     String message = decoder.decode(buffer).toString();
-    System.out.print( message );
+    // System.out.print( message );
 
-
+    
     ChatUser chatUser = (ChatUser) key.attachment();
-    msg = chatUser.getMsg() + msg;
-    if(msg.endsWith("\n")){ // \n
+    message = chatUser.getMsg() + message;
+    if(message.endsWith("\n")){ // \n
     }else {                  // ctrl D
-        chatUser.addMsg(msg);
+        chatUser.addMsg(message);
         return true;
     }
 
+
+    // Parse the message
+    String[] tokens = message.split(" ");
+    if (tokens.length == 0) {
+      return true;
+    }
+
+
+    // Check if the user wants to create/enter a chat room
+    if (tokens[0].equals("/join")) {
+
+    // Check if the user wants to leave a chat room
+    } else if (tokens[0].equals("/leave")) {
+      
+    // Check if the user wants to send a message to a user
+    } else if (tokens[0].equals("/priv")) {
+      
+
+    // Check if the user wants to change his nickname
+    } else if (tokens[0].equals("/nick")) {
+
+    // Check if the user wants to send a message to a chat room
+    } else {
+      
+    }
+
+    chatUser.cleanMsg();
     return true;
   }
+
+  static private void send(SelectionKey key, String message) throws IOException {
+    message = message + "\n";
+    SocketChannel sc = (SocketChannel) key.channel();
+    sc.write(encoder.encode(CharBuffer.wrap(message)));
+  }
 }
-//Nick Command PARA A FRENTE
+
+class ChatUser {
+  private String nick, message = "";
+  private State chatState;
+  private ChatRoom chatRoom;
+
+  ChatUser() {
+    this.chatState = State.init;
+    this.nick = "";
+  }
+
+  public void setNick(String nick) {
+    this.nick = nick;
+  }
+
+  public String getNick() {
+    return this.nick;
+  }
+
+  public void setState(State state) {
+    this.chatState = state;
+  }
+
+  public State getState() {
+    return this.chatState;
+  }
+
+  public void setChatRoom(ChatRoom chatRoom) {
+    this.chatRoom = chatRoom;
+  }
+
+  public ChatRoom getChatRoom() {
+    return this.chatRoom;
+  }
+
+  public void addMsg(String message) {
+    this.message += message;
+  }
+
+  public String getMsg() {
+    return this.message;
+  }
+
+  public void cleanMsg() {
+    this.message = "";
+  }
+
+  public boolean inRoom(ChatRoom chatRoom) {
+    return this.chatRoom == chatRoom;
+  }
+}
