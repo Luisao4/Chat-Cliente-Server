@@ -17,14 +17,13 @@ public class ChatClient {
 
     // Se for necessário adicionar variáveis ao objecto ChatClient, devem
     // ser colocadas aqui
-    private int port, state;
+    private int port;
 
     private Socket clientSocket;
     private String server;
 
     private BufferedReader inFromServer;
-    private DataOutputStream outToServer;
-
+    private DataOutputStream msgToServer;
 
     // Método a usar para acrescentar uma string à caixa de texto
     // * NÃO MODIFICAR *
@@ -32,7 +31,6 @@ public class ChatClient {
         chatArea.append(message);
     }
 
-    
     // Construtor
     public ChatClient(String server, int port) throws IOException {
 
@@ -68,11 +66,12 @@ public class ChatClient {
 
         // Se for necessário adicionar código de inicialização ao
         // construtor, deve ser colocado aqui
+        
         this.port = port;
         this.server = server;
-        state = 0;
+
         clientSocket = new Socket(server, port);
-        outToServer = new DataOutputStream(clientSocket.getOutputStream());
+        msgToServer = new DataOutputStream(clientSocket.getOutputStream());
         inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
     }
 
@@ -82,8 +81,8 @@ public class ChatClient {
     public void newMessage(String message) throws IOException {
         // PREENCHER AQUI com código que envia a mensagem ao servidor
         message = message.trim();
-        System.out.println("SENDING:" + message);
-        outToServer.write((message + "\n").getBytes("UTF-8"));
+        System.out.println("SENDING: " + message);
+        msgToServer.write((message + "\n").getBytes("UTF-8"));
     }
 
     
@@ -106,23 +105,24 @@ public class ChatClient {
               String[] tks = msg.split(" ");
               switch(tks[0]) {
                 case "MESSAGE": {
-                  msg = msg.replaceFirst("MESSAGE","").replaceFirst(tks[1],"");
+                  msg = msg.replaceFirst("MESSAGE","");
+                  msg = msg.replaceFirst(tks[1],"");
                   msg = tks[1] + ":" + msg;
                   break;
                 }
-                case "PRIVATE": {
-                    break;
-                }
                 case "NEWNICK": {
-                  msg = tks[1] + " changed his nickname to: " + tks[2];
+                  msg = tks[1] + " mudou de nome para " + tks[2];
                   break;
                 }
                 case "JOINED": {
-                  msg = tks[1] + " joined the room";
+                  msg = tks[1] + " entrou na sala";
                   break;
                 }
                 case "LEFT": {
-                  msg = tks[1] + " left the room";
+                  msg = tks[1] + " saiu da sala";
+                  break;
+                }
+                case "PRIVATE": {
                   break;
                 }
               }
@@ -133,6 +133,7 @@ public class ChatClient {
                 flag = false;
               }
               msg = msg + "\n";
+                            
               printMessage(msg);
             }
           } catch(Exception e) {
@@ -140,7 +141,6 @@ public class ChatClient {
           }
     }
     
-
     // Instancia o ChatClient e arranca-o invocando o seu método run()
     // * NÃO MODIFICAR *
     public static void main(String[] args) throws IOException {
